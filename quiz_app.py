@@ -18,14 +18,64 @@ for pkg in required:
     except LookupError:
         nltk.download(pkg)
 
-st.set_page_config(page_title="AI Quiz Generator", layout="wide")
-st.title("Quiz Generator")
-st.write("Upload a PDF to generate multiple-choice questions.")
+# ========== CUSTOM COSMIC THEME ========== #
+st.set_page_config(page_title="Quiz Generator", layout="wide")
 
-# Upload PDF
-uploaded_file = st.file_uploader("Upload your PDF file", type=["pdf"])
+cosmic_css = """
+<style>
+body {
+    background: radial-gradient(circle at top, #0d0d2b, #000000);
+    color: #e0e0ff;
+}
+.block-container {
+    padding-top: 2rem;
+}
+h1, h2, h3, h4 {
+    color: #b9b9ff !important;
+    text-shadow: 0 0 10px #6a5acd;
+}
+.css-1d391kg, .stButton button {
+    background: linear-gradient(90deg, #5a00ff, #9d00ff);
+    color: white;
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 0 10px purple;
+}
+.stButton>button:hover {
+    background: linear-gradient(90deg, #4b00cc, #7d00cc);
+    box-shadow: 0 0 20px magenta;
+    transform: scale(1.03);
+}
+.sidebar .sidebar-content {
+    background: #000016;
+}
+.stRadio > div {
+    background: #1d1d32;
+    padding: 10px;
+    border-radius: 10px;
+}
+</style>
+"""
+st.markdown(cosmic_css, unsafe_allow_html=True)
 
-# Extract text from PDF
+# ========== TITLE ========== #
+st.markdown(
+    "<h1 style='text-align:center;'> AI Quiz Generator </h1>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    "<h4 style='text-align:center;'>Upload a PDF </h4>",
+    unsafe_allow_html=True,
+)
+
+# ========== FILE UPLOAD ========== #
+uploaded_file = st.file_uploader(
+    "upload your PDF file", 
+    type=["pdf"],
+    help="Upload any study PDF — The ai will turns it into quiz"
+)
+
+# ========== PDF TEXT EXTRACTION ========== #
 def extract_text_from_pdf(file):
     text = ""
     with fitz.open(stream=file.read(), filetype="pdf") as pdf:
@@ -33,7 +83,7 @@ def extract_text_from_pdf(file):
             text += page.get_text("text") + "\n"
     return text
 
-# Generate MCQs
+# ========== MCQ GENERATOR ========== #
 def generate_mcqs(text, num_questions=5):
     sentences = sent_tokenize(text)
     sentences = [s.strip() for s in sentences if len(s.split()) > 6]
@@ -53,37 +103,48 @@ def generate_mcqs(text, num_questions=5):
             questions.append((question, options, answer))
     return questions
 
-# Main logic
+# ========== MAIN LOGIC ========== #
 if uploaded_file is not None:
     text = extract_text_from_pdf(uploaded_file)
     if not text.strip():
-        st.error("Uploaded PDF contained no extractable text. Try a different PDF.")
+        st.error(" The PDF contained no extractable text. Try another file.")
     else:
-        st.success(" PDF uploaded and processed successfully!")
-        num_questions = st.number_input("How many questions do you want to generate?", min_value=1, max_value=20, value=5)
+        st.success(" PDF uploaded and decoded successfully!")
+        num_questions = st.number_input(
+            "Number of questions you want:",
+            min_value=1,
+            max_value=20,
+            value=5
+        )
 
         if st.button("Generate Quiz"):
             mcqs = generate_mcqs(text, num_questions=num_questions)
-
             if not mcqs:
-                st.warning(" Could not generate questions. Try uploading a longer or more detailed PDF.")
+                st.warning("Could not generate meaningful questions.")
             else:
                 st.session_state["quiz"] = mcqs
                 st.session_state["answers"] = {}
 
-# If quiz already generated
+# ========== QUIZ OUTPUT ========== #
 if "quiz" in st.session_state:
-    st.subheader("Your Quiz is Ready!")
+    st.markdown("<h2> Your Quiz is Ready </h2>", unsafe_allow_html=True)
 
     for i, (q, options, ans) in enumerate(st.session_state["quiz"], 1):
-        selected = st.radio(f"**Q{i}.** {q}", options, key=f"q{i}", index=None)  # <-- FIXED
+        selected = st.radio(
+            f"**Q{i}.** {q}", 
+            options, 
+            key=f"q{i}",
+            index=None
+        )
         st.session_state["answers"][i] = {"selected": selected, "correct": ans}
 
-    if st.button("Submit All"):
+    if st.button("Submit Answers"):
         score = 0
         for i, data in st.session_state["answers"].items():
             if data["selected"] == data["correct"]:
                 score += 1
-        st.success(f" Final Score: **{score}/{len(st.session_state['answers'])}**")
-        st.info("✨ Thanks for using this Quiz Generator by **Gaurav Yadav,Mayank Kaushik,Aadarsh Tripathi,Satyam Srivastava of [1CSE17]** ✨")
+
+        st.success(f"Final Score: **{score}/{len(st.session_state['answers'])}** ")
+
+        st.info("Developed by **Gaurav Yadav, Mayank Kaushik, Aadarsh Tripathi, Satyam Srivastava of [1CSE17]**")
         del st.session_state["quiz"]
