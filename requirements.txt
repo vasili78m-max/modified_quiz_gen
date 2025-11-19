@@ -2,8 +2,8 @@ streamlit
 PyMuPDF
 nltk
 questgen-ai
-transformers
-torch
+
+
 
 
 
