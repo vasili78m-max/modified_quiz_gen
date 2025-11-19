@@ -1,80 +1,121 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz   # PyMuPDF
 import nltk
-from questgen import main
 import os
 
-# Ensure NLTK tokenizer
+# Download NLTK tokenizer
 nltk.download("punkt")
+from nltk.tokenize import sent_tokenize
 
-# Streamlit UI config
-st.set_page_config(page_title="AI Quiz Generator", layout="wide")
-st.title("AI Quiz Generator (Powered by QuestgenAI)")
-st.write("Upload a PDF to generate high-quality MCQs using NLP models.")
+# Questgen Imports
+from Questgen import main
+qg = main.QGen()
 
-# Upload PDF
-uploaded_file = st.file_uploader("Upload your PDF file", type=["pdf"])
+# ------------------ PAGE CONFIG ------------------ #
+st.set_page_config(page_title="AI Concept-Based Quiz Generator", layout="wide")
 
-# Extract text from PDF
+st.markdown("""
+    <h1 style='text-align:center; color:#6a5acd;'>AI Concept-Based Quiz Generator</h1>
+    <p style='text-align:center; color:#ccccff;'>Upload any PDF and the AI will generate meaningful conceptual MCQs.</p>
+""", unsafe_allow_html=True)
+
+
+# ------------------ PDF TEXT EXTRACTOR ------------------ #
 def extract_text_from_pdf(file):
     text = ""
-    with fitz.open(stream=file.read(), filetype="pdf") as pdf:
-        for page in pdf:
-            text += page.get_text("text") + "\n"
-    return text.strip()
+    try:
+        with fitz.open(stream=file.read(), filetype="pdf") as pdf:
+            for page in pdf:
+                text += page.get_text("text") + "\n"
+    except Exception as e:
+        st.error(f"Error reading PDF: {e}")
+    return text
 
-# Use Questgen to generate MCQs
-def generate_mcqs_questgen(text):
-    qg = main.QGen()
 
-    payload = {"input_text": text}
-    output = qg.predict_mcq(payload)
+# ------------------ QUESTGEN MCQ GENERATOR ------------------ #
+def generate_concept_mcqs(text, num_questions=5):
+    try:
+        payload = {"input_text": text}
+        response = qg.mcq(payload)
 
-    return output
+        if "questions" not in response:
+            return []
 
-# Main logic
+        all_q = response["questions"]
+        all_q = all_q[:num_questions]  # limit the number
+
+        formatted_mcqs = []
+        for item in all_q:
+            question = item.get("question")
+            options = item.get("options")
+            answer = item.get("answer")
+
+            if question and options and answer:
+                formatted_mcqs.append((question, options, answer))
+
+        return formatted_mcqs
+
+    except Exception as e:
+        st.error(f"Questgen generation error: {e}")
+        return []
+
+
+# ------------------ FILE UPLOAD SECTION ------------------ #
+uploaded_file = st.file_uploader("Upload your study PDF", type=["pdf"])
+
 if uploaded_file is not None:
     text = extract_text_from_pdf(uploaded_file)
 
-    if not text:
-        st.error("The PDF had no extractable text.")
+    if not text.strip():
+        st.error("No readable text found in this PDF.")
     else:
-        st.success("PDF extracted successfully!")
+        st.success("PDF processed successfully!")
 
-        if st.button("Generate MCQs with QuestgenAI"):
-            with st.spinner("Generating questions... This may take 10–20 seconds..."):
-                try:
-                    mcq_output = generate_mcqs_questgen(text)
+        num_questions = st.number_input(
+            "How many MCQs do you want?",
+            min_value=1,
+            max_value=20,
+            value=5
+        )
 
-                    questions = mcq_output.get("questions", [])
-                    if not questions:
-                        st.warning("Questgen couldn't generate questions. Try another PDF.")
-                    else:
-                        st.session_state["quiz"] = questions
-                        st.session_state["answers"] = {}
+        if st.button("Generate Quiz"):
+            with st.spinner("Generating conceptual questions..."):
+                mcqs = generate_concept_mcqs(text, num_questions)
 
-                except Exception as e:
-                    st.error(f"Questgen Error: {e}")
+            if not mcqs:
+                st.warning("Could not generate MCQs. Try using a more descriptive PDF.")
+            else:
+                st.session_state["quiz"] = mcqs
+                st.session_state["answers"] = {}
 
-# Display Quiz
+
+# ------------------ QUIZ DISPLAY SECTION ------------------ #
 if "quiz" in st.session_state:
-    st.subheader("Generated Quiz")
 
-    for i, q in enumerate(st.session_state["quiz"], 1):
-        question = q.get("question")
-        options = q.get("options")
-        answer = q.get("answer")
+    st.markdown("<h2 style='color:#b9b9ff;'>Your Concept-Based Quiz</h2>", unsafe_allow_html=True)
 
-        selected = st.radio(f"Q{i}. {question}", options, key=f"q{i}")
-        st.session_state["answers"][i] = {"selected": selected, "correct": answer}
+    for i, (question, options, correct) in enumerate(st.session_state["quiz"], start=1):
+        selected = st.radio(
+            f"**Q{i}. {question}**",
+            options,
+            key=f"q{i}",
+            index=None
+        )
+        st.session_state["answers"][i] = {
+            "selected": selected,
+            "correct": correct
+        }
 
-    if st.button("Submit"):
+    if st.button("Submit Answers"):
         score = 0
+        total = len(st.session_state["answers"])
+
         for i, data in st.session_state["answers"].items():
             if data["selected"] == data["correct"]:
                 score += 1
 
-        st.success(f"Score: {score}/{len(st.session_state['answers'])}")
-        st.info("Created by Gaurav Yadav, Mayank Kaushik, Aadarsh Tripathi, Satyam Srivastava [1CSE17]")
+        st.success(f"Your final score: **{score}/{total}**")
 
-        del st.session_state["quiz"]
+        st.info("Concept-Based Quiz Generated Using Questgen-AI + NLTK + Streamlit")
+
+        del st.session_state["quiz"]  # Clear quiz after submission
