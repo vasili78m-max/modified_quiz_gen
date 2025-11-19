@@ -1,4 +1,6 @@
 streamlit
 PyMuPDF
 nltk
+questgen-ai
+
 
